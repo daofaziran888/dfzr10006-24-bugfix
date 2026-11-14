@@ -1,4 +1,4 @@
-"""数据订阅推送接口：维护订阅任务，覆盖启动推送、暂停推送、归档任务等动作。"""
+"""数据订阅推送接口：维护订阅任务，并提供加工输出的订阅详情读取口径。"""
 from __future__ import annotations
 
 from typing import Any
@@ -30,6 +30,13 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出数据订阅推送清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "subscribe", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条订阅任务明细；不存在时给出可读的错误说明。"""
@@ -37,6 +44,15 @@ def get_entry(entry_id: int) -> dict:
     if entry is None:
         raise HTTPException(status_code=404, detail=f"订阅任务 {entry_id} 不存在或已归档")
     return entry
+
+
+@router.get("/{entry_id}/output", response_model=dict)
+def read_output(entry_id: int) -> dict:
+    """订阅详情读取加工输出：只返回已确认快照；否则返回空态与「暂无数据」说明。"""
+    detail, message = service.read_output(entry_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=message)
+    return detail
 
 
 @router.post("", response_model=ActionResult)
@@ -56,10 +72,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出数据订阅推送清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "subscribe", "total": total, "items": items}

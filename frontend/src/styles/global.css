@@ -33,3 +33,18 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .link { border: none; background: none; color: var(--brand); cursor: pointer; padding: 0; }
 .page-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .error-text { color: #b42318; }
+.notice-text { color: #067647; }
+.row-active { background: #eff4ff; }
+.detail-panel { margin-top: 14px; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.detail-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.detail-head h3 { margin: 0; font-size: 15px; }
+.detail-panel h4 { margin: 14px 0 6px; font-size: 13px; }
+.detail-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.detail-grid .filter-item { flex: 1; min-width: 260px; }
+.detail-panel textarea { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px; font: inherit; resize: vertical; }
+.log-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.log-list li { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; display: flex; justify-content: space-between; gap: 10px; }
+.log-ok { border-left: 3px solid #067647; }
+.log-fail { border-left: 3px solid #b42318; }
+.log-time { color: var(--muted); white-space: nowrap; }
+.empty-block { border: 1px dashed var(--border); border-radius: 8px; padding: 20px; text-align: center; }

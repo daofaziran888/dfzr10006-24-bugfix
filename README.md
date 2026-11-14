@@ -73,5 +73,31 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 数据加工转换链路（解析 → 裁剪 → 日志落库 → 订阅读取）
+
+加工规则只有从草稿进入「生效中」后才允许字段裁剪；暂停或关闭会清空待执行步骤，
+但保留最近一次完整加工结果与历史日志。相关接口：
+
+| 接口 | 作用 |
+| --- | --- |
+| `POST /api/transform/{id}/tasks` | 提交转换任务，依次走解析、字段裁剪、日志落库 |
+| `POST /api/transform/{id}/snapshot/confirm` | 确认输出字段快照，确认前订阅侧读不到半成品 |
+| `PUT  /api/transform/{id}/expression` | 并发安全地修改映射表达式（`expected_version` 乐观锁，冲突返回 409） |
+| `GET  /api/transform/{id}/logs` | 历史转换日志，按原规则编号保留，成功/失败分账 |
+| `GET  /api/transform/{id}/tasks` | 转换任务列表，含中断标记，中断后可再次提交 |
+| `GET  /api/subscribe/{id}/output` | 订阅详情读取加工输出，只返回已确认快照，否则为空态+「暂无数据」说明 |
+
+约束：失败日志只写缺失字段、规则编号、重试位置，绝不覆盖成功日志；
+两个请求并发修改同一映射表达式时只接受一个生效版本。
+
+### 测试
+
+```bash
+make test
+# 或分开运行
+cd backend && .venv/bin/python -m app.tests.test_transform_chain  # 领域规则（11 项）
+cd backend && .venv/bin/python -m app.tests.test_api_chain        # ASGI 接口级链路冒烟
+```
+
 领域：数据工程
 子方向：数据分析与数据应用

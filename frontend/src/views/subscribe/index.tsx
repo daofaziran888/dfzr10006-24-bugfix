@@ -18,34 +18,23 @@ const actions = [
   "暂停推送",
   "归档任务"
 ]
-const statuses = [
-  "草稿",
-  "推送中",
-  "已暂停",
-  "已完成"
-]
-const stats = [
-  {
-    "label": "订阅任务总数",
-    "value": 0
-  },
-  {
-    "label": "推送中任务",
-    "value": 0
-  },
-  {
-    "label": "已暂停任务",
-    "value": 0
-  }
-]
 
 type Row = Record<string, string | number | null>
+type OutputDetail = {
+  可读输出: Array<Record<string, unknown>> | null
+  输出字段: string[]
+  空态说明: string
+  快照状态?: string
+  来源规则编号?: string
+  可再次提交: boolean
+}
 
 export default function SubscribeView() {
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
+  const [detail, setDetail] = useState<(OutputDetail & { 任务编号?: string }) | null>(null)
   const filterFields = useMemo(() => columns.slice(0, 3), [])
 
   const reload = useCallback(async () => {
@@ -73,14 +62,30 @@ export default function SubscribeView() {
     try {
       const response = await request(`${ENDPOINT}/${row.id}/actions`, {
         method: 'POST',
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ values: { action } }),
       })
-      if (!response.ok) {
-        throw new Error('数据订阅推送动作未生效，请稍后重试')
+      const payload = await response.json()
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || '数据订阅推送动作未生效，请稍后重试')
       }
       await reload()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '数据订阅推送操作失败')
+    }
+  }
+
+  // 环节四：订阅详情只读取已确认的输出字段快照；未确认/无输出时展示空态与暂无数据说明。
+  async function openDetail(row: Row) {
+    setErrorMessage('')
+    try {
+      const response = await request(`${ENDPOINT}/${row.id}/output`)
+      if (!response.ok) {
+        throw new Error('订阅详情读取失败')
+      }
+      const payload = (await response.json()) as OutputDetail & { 任务编号?: string }
+      setDetail(payload)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '订阅详情读取失败')
     }
   }
 
@@ -89,26 +94,14 @@ export default function SubscribeView() {
       <header className="page-head">
         <div>
           <h2>数据订阅推送管理</h2>
-          <p className="page-desc">维护数据订阅的推送目标、格式选择与频率控制，为数据订阅推送提供可验证的数据工程流程。</p>
+          <p className="page-desc">维护数据订阅的推送目标、格式选择与频率控制；详情只读取加工规则已确认的输出字段快照，未确认的半成品不可见。</p>
         </div>
         <div className="page-actions">
-          <button className="btn primary" type="button" onClick={() => setErrorMessage('订阅任务登记入口尚未接入审批流')}>
-            登记订阅任务
-          </button>
           <button className="btn" type="button" onClick={() => window.open(`${ENDPOINT}/export`, '_blank')}>
             导出数据订阅推送清单
           </button>
         </div>
       </header>
-
-      <div className="stat-row">
-        {stats.map((item) => (
-          <article key={item.label} className="stat-card">
-            <span className="stat-label">{item.label}</span>
-            <strong className="stat-value">{item.value}</strong>
-          </article>
-        ))}
-      </div>
 
       <form className="filter-bar" onSubmit={(event) => { event.preventDefault(); void reload() }}>
         {filterFields.map((field) => (
@@ -137,6 +130,9 @@ export default function SubscribeView() {
             <tr key={String(row.id)}>
               {columns.map((column) => <td key={column}>{row[column] ?? '—'}</td>)}
               <td className="row-actions">
+                <button className="link" type="button" onClick={() => void openDetail(row)}>
+                  订阅详情
+                </button>
                 {actions.map((action) => (
                   <button key={action} className="link" type="button" onClick={() => void runAction(action, row)}>
                     {action}
@@ -152,6 +148,47 @@ export default function SubscribeView() {
           )}
         </tbody>
       </table>
+
+      {detail && (
+        <article className="detail-panel">
+          <header className="detail-head">
+            <h3>订阅详情 · {detail.任务编号 ?? '输出读取'}</h3>
+            <button className="btn ghost" type="button" onClick={() => setDetail(null)}>收起</button>
+          </header>
+
+          {!detail.可读输出 ? (
+            // 没有可读输出：空态 + 暂无数据说明，不暴露任何半成品字段。
+            <div className="empty-block">
+              <p className="empty-state">{detail.空态说明 || '暂无数据'}</p>
+              {detail.可再次提交 && (
+                <p className="page-desc">转换任务受中断影响时可在数据加工转换页面再次提交，确认快照后此处即可读取。</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <p className="page-desc">
+                来源规则 {detail.来源规则编号} · 快照状态：{detail.快照状态} · 共 {detail.可读输出.length} 条输出
+              </p>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    {detail.输出字段.map((field) => <th key={field}>{field}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.可读输出.map((record, index) => (
+                    <tr key={index}>
+                      {detail.输出字段.map((field) => (
+                        <td key={field}>{record[field] === null || record[field] === undefined ? '—' : String(record[field])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
+      )}
 
       <footer className="page-foot">
         <span>共 {total} 条数据订阅推送记录</span>
